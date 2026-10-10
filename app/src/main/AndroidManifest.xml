@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Nessun permesso legato a telefono/contatti: l'identità è solo il nickname + chiave locale -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Usato solo per la scansione del QR di un contatto, mai in background -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Vaenor"
+        android:theme="@style/Theme.ChatCifrata"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.ChatCifrata">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Permette di aprire un link di invito tipo vaenor://aggiungi?nick=...&chiave=...&onion=...
+                 direttamente nell'app, per aggiungere un contatto in un tocco. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vaenor" android:host="aggiungi" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
