@@ -9,15 +9,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.nickapp.chatcifrata.rete.TrasportoTor
 import com.nickapp.chatcifrata.rete.orbotInstallato
 import com.nickapp.chatcifrata.rete.proxyOrbotRaggiungibile
 import kotlinx.coroutines.launch
 
 /**
  * Vaenor funziona solo sopra la rete Tor: senza Orbot attivo, nessun messaggio può essere
- * inviato o ricevuto. Invece di lasciare che l'utente scopra il problema solo quando un
- * invio fallisce, questa schermata blocca l'accesso finché Orbot non risulta installato
- * E il suo proxy SOCKS non risponde davvero.
+ * inviato o ricevuto. Questa schermata blocca l'accesso finché il proxy Tor non risponde.
+ *
+ * Il criterio che conta è il proxy: se risponde, si entra, indipendentemente dal fatto che
+ * Android ci dica o no se Orbot è installato. Il controllo "installato" serve solo a scegliere
+ * quale messaggio mostrare quando il proxy NON risponde.
  */
 @Composable
 fun RichiedeOrbotScreen(onOrbotPronto: () -> Unit) {
@@ -25,18 +28,15 @@ fun RichiedeOrbotScreen(onOrbotPronto: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     var installato by remember { mutableStateOf(orbotInstallato(context)) }
-    var controllandoProxy by remember { mutableStateOf(false) }
-    var proxyOk by remember { mutableStateOf(false) }
+    var controllando by remember { mutableStateOf(false) }
 
     fun ricontrolla() {
         installato = orbotInstallato(context)
-        if (installato) {
-            controllandoProxy = true
-            scope.launch {
-                proxyOk = proxyOrbotRaggiungibile()
-                controllandoProxy = false
-                if (proxyOk) onOrbotPronto()
-            }
+        controllando = true
+        scope.launch {
+            val proxyOk = proxyOrbotRaggiungibile()
+            controllando = false
+            if (proxyOk) onOrbotPronto()
         }
     }
 
@@ -55,7 +55,7 @@ fun RichiedeOrbotScreen(onOrbotPronto: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Text(
                 "Vaenor funziona solo attraverso la rete Tor, tramite l'app Orbot. " +
-                    "Installala, poi torna qui e premi \"Ricontrolla\".",
+                    "Installala, avviala, poi torna qui e premi \"Ricontrolla\".",
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(Modifier.height(20.dp))
@@ -73,15 +73,21 @@ fun RichiedeOrbotScreen(onOrbotPronto: () -> Unit) {
             Text("Orbot non risponde", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Orbot risulta installato ma il tunnel Tor non è ancora attivo. " +
-                    "Apri Orbot, avvia la connessione, poi torna qui.",
+                "Orbot risulta installato ma il tunnel Tor non è attivo. " +
+                    "Apri Orbot, avvia la connessione e aspetta che risulti connesso, poi torna qui.",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
 
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Controllo la porta ${TrasportoTor.PORTA_SOCKS_ORBOT} su questo telefono.",
+            style = MaterialTheme.typography.labelSmall
+        )
+
         Spacer(Modifier.height(16.dp))
-        Button(onClick = { ricontrolla() }, enabled = !controllandoProxy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (controllandoProxy) "Verifica in corso…" else "Ricontrolla")
+        Button(onClick = { ricontrolla() }, enabled = !controllando, modifier = Modifier.fillMaxWidth()) {
+            Text(if (controllando) "Verifica in corso…" else "Ricontrolla")
         }
     }
 }
