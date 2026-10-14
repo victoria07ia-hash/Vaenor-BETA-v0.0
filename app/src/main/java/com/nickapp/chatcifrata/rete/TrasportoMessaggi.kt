@@ -7,7 +7,7 @@ interface TrasportoMessaggi {
 
     suspend fun avvia()
 
-    suspend fun invia(indirizzoDestinatario: String, tipo: String, idCondiviso: String, pacchetto: PacchettoCifrato): Boolean
+    suspend fun invia(indirizzoDestinatario: String, mittente: String, tipo: String, idCondiviso: String, pacchetto: PacchettoCifrato): Boolean
 
     fun alRicevimento(callback: (mittente: String, tipo: String, idCondiviso: String, pacchetto: PacchettoCifrato) -> Unit)
 
@@ -29,11 +29,15 @@ class TrasportoTor : TrasportoMessaggi {
 
     companion object {
         const val PORTA_LOCALE = 8080
-        const val PORTA_SOCKS_ORBOT = 9050
+        /** Porta del proxy SOCKS di Tor: viene aggiornata dal controllo all'avvio
+         *  (vedi ControlloOrbot.kt) con la porta su cui il proxy risponde davvero. */
+        @Volatile
+        var portaSocks: Int = 9050
     }
 
     override suspend fun avvia() {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (serverLocale?.isClosed == false) return@withContext
             serverLocale = java.net.ServerSocket(PORTA_LOCALE, 50, java.net.InetAddress.getLoopbackAddress())
 
             jobAscolto = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -56,20 +60,20 @@ class TrasportoTor : TrasportoMessaggi {
         }
     }
 
-    override suspend fun invia(indirizzoDestinatario: String, tipo: String, idCondiviso: String, pacchetto: PacchettoCifrato): Boolean =
+    override suspend fun invia(indirizzoDestinatario: String, mittente: String, tipo: String, idCondiviso: String, pacchetto: PacchettoCifrato): Boolean =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val proxy = java.net.Proxy(
                     java.net.Proxy.Type.SOCKS,
-                    java.net.InetSocketAddress("127.0.0.1", PORTA_SOCKS_ORBOT)
+                    java.net.InetSocketAddress("127.0.0.1", portaSocks)
                 )
                 java.net.Socket(proxy).use { socket ->
                     socket.connect(
                         java.net.InetSocketAddress.createUnresolved(indirizzoDestinatario, PORTA_LOCALE),
-                        15000
+                        60000
                     )
                     val output = socket.getOutputStream()
-                    scriviCampoTesto(output, "identificativo-locale") // TODO: usare il proprio nickname/indirizzo
+                    scriviCampoTesto(output, mittente)
                     scriviCampoTesto(output, tipo)
                     scriviCampoTesto(output, idCondiviso)
                     scriviPacchetto(output, pacchetto)
