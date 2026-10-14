@@ -29,10 +29,14 @@ class TrasportoTor : TrasportoMessaggi {
 
     companion object {
         const val PORTA_LOCALE = 8080
-        /** Porta del proxy SOCKS di Tor: viene aggiornata dal controllo all'avvio
-         *  (vedi ControlloOrbot.kt) con la porta su cui il proxy risponde davvero. */
+
+        /** Porta SOCKS predefinita di Orbot. */
+        const val PORTA_SOCKS_ORBOT = 9050
+
+        /** Porta del proxy SOCKS di Tor in uso: parte dal valore predefinito e viene aggiornata
+         *  dal controllo all'avvio (vedi ControlloOrbot.kt) con la porta su cui il proxy risponde davvero. */
         @Volatile
-        var portaSocks: Int = 9050
+        var portaSocks: Int = PORTA_SOCKS_ORBOT
     }
 
     override suspend fun avvia() {
