@@ -29,8 +29,7 @@ fun CreazioneIdentitaScreen(
         Text("Crea la tua identità", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Nessuna email o numero di telefono richiesto. Scegli solo un nickname: " +
-                "le tue chiavi di sicurezza vengono generate su questo dispositivo e non lasciano mai il telefono.",
+            "Nessuna email o numero di telefono richiesto. Scegli solo un nickname.",
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(Modifier.height(24.dp))

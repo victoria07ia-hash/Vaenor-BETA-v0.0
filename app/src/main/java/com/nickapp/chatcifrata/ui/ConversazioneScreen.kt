@@ -48,6 +48,16 @@ data class Messaggio(
     val inviatoDaMe: Boolean
 )
 
+/** Genera identificativi locali sempre diversi per i messaggi (chiave della lista in schermata). */
+object GeneratoreId {
+    private val contatore = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
+    fun nuovo(): Long = contatore.incrementAndGet()
+}
+
+/** Orario attuale nel formato ore:minuti, mostrato sotto ogni messaggio. */
+fun oraAttuale(): String =
+    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+
 private fun decodificaChiavePubblica(base64: String): PublicKey {
     val bytes = Base64.getDecoder().decode(base64)
     return KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(bytes))
@@ -64,6 +74,7 @@ fun ConversazioneScreen(
     val context = LocalContext.current
     val storage = remember { StorageLocale(context) }
     val crypto = remember { CryptoManager() }
+    val mioNickname = remember { storage.leggiNickname() ?: "" }
     val scope = rememberCoroutineScope()
 
     val chiavePrivataMia = remember { storage.leggiChiavePrivata() }
@@ -88,7 +99,7 @@ fun ConversazioneScreen(
         val chiave = chiaveCondivisa ?: return
         scope.launch {
             val pacchettoVuoto = crypto.cifraBytes(ByteArray(0), chiave)
-            trasporto.invia(contatto.indirizzoOnion, "elimina", messaggio.idCondiviso, pacchettoVuoto)
+            trasporto.invia(contatto.indirizzoOnion, mioNickname, "elimina", messaggio.idCondiviso, pacchettoVuoto)
         }
     }
 
@@ -101,56 +112,18 @@ fun ConversazioneScreen(
                 val idCondiviso = UUID.randomUUID().toString()
                 onMessaggiAggiornati(
                     messaggi + Messaggio(
-                        id = System.currentTimeMillis(), idCondiviso = idCondiviso, tipo = TipoMessaggio.FOTO,
-                        datiFoto = bytes, orario = "ora", inviatoDaMe = true
+                        id = GeneratoreId.nuovo(), idCondiviso = idCondiviso, tipo = TipoMessaggio.FOTO,
+                        datiFoto = bytes, orario = oraAttuale(), inviatoDaMe = true
                     )
                 )
                 scope.launch {
-                    val inviato = trasporto.invia(contatto.indirizzoOnion, "foto", idCondiviso, pacchetto)
+                    val inviato = trasporto.invia(contatto.indirizzoOnion, mioNickname, "foto", idCondiviso, pacchetto)
                     statoInvio = if (inviato) null else "Non recapitato: verifica che Orbot sia attivo e il contatto raggiungibile"
                 }
             }
         }
     }
 
-    // Ogni pacchetto in arrivo passa da un blocco try/catch: se la decifratura fallisce
-    // (pacchetto corrotto, manomesso, o cifrato con una chiave diversa da quella attesa),
-    // viene scartato invece di far crashare l'app.
-    DisposableEffect(contatto, chiaveCondivisa) {
-        trasporto.alRicevimento { mittente, tipo, idCondiviso, pacchetto ->
-            val chiave = chiaveCondivisa
-            if (mittente == contatto.nickname && chiave != null) {
-                try {
-                    when (tipo) {
-                        "foto" -> {
-                            val bytes = crypto.decifraBytes(pacchetto, chiave)
-                            onMessaggiAggiornati(
-                                messaggi + Messaggio(
-                                    id = System.currentTimeMillis(), idCondiviso = idCondiviso, tipo = TipoMessaggio.FOTO,
-                                    datiFoto = bytes, orario = "ora", inviatoDaMe = false
-                                )
-                            )
-                        }
-                        "elimina" -> {
-                            onMessaggiAggiornati(messaggi.filterNot { it.idCondiviso == idCondiviso })
-                        }
-                        else -> {
-                            val testo = crypto.decifraMessaggio(pacchetto, chiave)
-                            onMessaggiAggiornati(
-                                messaggi + Messaggio(
-                                    id = System.currentTimeMillis(), idCondiviso = idCondiviso, tipo = TipoMessaggio.TESTO,
-                                    testoChiaro = testo, orario = "ora", inviatoDaMe = false
-                                )
-                            )
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Pacchetto non decifrabile: scartato silenziosamente, senza crash.
-                }
-            }
-        }
-        onDispose { }
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -177,8 +150,9 @@ fun ConversazioneScreen(
         if (mostraCodice) {
             Text(
                 codiceSicurezza,
-                modifier = Modifier.fillMaxWidth().background(Color(0xFFEEF0FF)).padding(8.dp),
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(8.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -226,13 +200,13 @@ fun ConversazioneScreen(
                     val idCondiviso = UUID.randomUUID().toString()
                     onMessaggiAggiornati(
                         messaggi + Messaggio(
-                            id = System.currentTimeMillis(), idCondiviso = idCondiviso, tipo = TipoMessaggio.TESTO,
-                            testoChiaro = testo, orario = "ora", inviatoDaMe = true
+                            id = GeneratoreId.nuovo(), idCondiviso = idCondiviso, tipo = TipoMessaggio.TESTO,
+                            testoChiaro = testo, orario = oraAttuale(), inviatoDaMe = true
                         )
                     )
                     testoInput = ""
                     scope.launch {
-                        val inviato = trasporto.invia(contatto.indirizzoOnion, "testo", idCondiviso, pacchetto)
+                        val inviato = trasporto.invia(contatto.indirizzoOnion, mioNickname, "testo", idCondiviso, pacchetto)
                         statoInvio = if (inviato) null else "Non recapitato: verifica che Orbot sia attivo e il contatto raggiungibile"
                     }
                 }
@@ -276,6 +250,9 @@ fun ConversazioneScreen(
 
 @Composable
 private fun BollaMessaggio(messaggio: Messaggio, onElimina: () -> Unit, onAperturaFoto: () -> Unit) {
+    // Colori presi dal tema, così restano leggibili sia in chiaro sia in scuro.
+    val coloreSfondo = if (messaggio.inviatoDaMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val coloreTesto = if (messaggio.inviatoDaMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = if (messaggio.inviatoDaMe) Arrangement.End else Arrangement.Start,
@@ -290,7 +267,7 @@ private fun BollaMessaggio(messaggio: Messaggio, onElimina: () -> Unit, onApertu
         Box(
             modifier = Modifier
                 .background(
-                    color = if (messaggio.inviatoDaMe) Color(0xFFE6F1FB) else Color(0xFFF1EFE8),
+                    color = coloreSfondo,
                     shape = RoundedCornerShape(12.dp)
                 )
                 .then(if (messaggio.tipo == TipoMessaggio.FOTO && !messaggio.fotoVista) Modifier.clickable { onAperturaFoto() } else Modifier)
@@ -301,8 +278,8 @@ private fun BollaMessaggio(messaggio: Messaggio, onElimina: () -> Unit, onApertu
                     messaggio.tipo == TipoMessaggio.FOTO && messaggio.fotoVista ->
                         Text("📷 Foto visualizzata", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                     messaggio.tipo == TipoMessaggio.FOTO ->
-                        Text("📷 Foto · tocca per vedere una volta", style = MaterialTheme.typography.bodySmall)
-                    else -> Text(messaggio.testoChiaro)
+                        Text("📷 Foto · tocca per vedere una volta", color = coloreTesto, style = MaterialTheme.typography.bodySmall)
+                    else -> Text(messaggio.testoChiaro, color = coloreTesto)
                 }
                 Text(messaggio.orario, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             }
