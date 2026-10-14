@@ -11,7 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.nickapp.chatcifrata.rete.TrasportoTor
 import com.nickapp.chatcifrata.rete.orbotInstallato
-import com.nickapp.chatcifrata.rete.proxyOrbotRaggiungibile
+import com.nickapp.chatcifrata.rete.trovaProxyTor
 import kotlinx.coroutines.launch
 
 /**
@@ -34,9 +34,13 @@ fun RichiedeOrbotScreen(onOrbotPronto: () -> Unit) {
         installato = orbotInstallato(context)
         controllando = true
         scope.launch {
-            val proxyOk = proxyOrbotRaggiungibile()
+            val porta = trovaProxyTor()
             controllando = false
-            if (proxyOk) onOrbotPronto()
+            if (porta != null) {
+                // Ricordo la porta su cui il proxy risponde davvero, così l'invio dei messaggi usa quella.
+                TrasportoTor.portaSocks = porta
+                onOrbotPronto()
+            }
         }
     }
 
@@ -81,7 +85,7 @@ fun RichiedeOrbotScreen(onOrbotPronto: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
         Text(
-            "Controllo la porta ${TrasportoTor.PORTA_SOCKS_ORBOT} su questo telefono.",
+            "Controllo le porte 9050 e 9150 su questo telefono.",
             style = MaterialTheme.typography.labelSmall
         )
 
