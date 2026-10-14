@@ -131,6 +131,14 @@ class StorageLocale(context: Context) {
         prefs.edit().putString("contatti", array.toString()).apply()
     }
 
+    // --- Preferenze di aspetto ---
+
+    fun leggiTema(): TemaApp = TemaApp.daChiave(prefs.getString("tema", null))
+
+    fun salvaTema(tema: TemaApp) {
+        prefs.edit().putString("tema", tema.chiave).apply()
+    }
+
     /** Cancella completamente l'identità e i dati locali. */
     fun cancellaTutto() {
         prefs.edit().clear().apply()
