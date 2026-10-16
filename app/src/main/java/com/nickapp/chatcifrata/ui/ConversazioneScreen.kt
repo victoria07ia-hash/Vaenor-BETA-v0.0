@@ -118,7 +118,7 @@ fun ConversazioneScreen(
                 )
                 scope.launch {
                     val inviato = trasporto.invia(contatto.indirizzoOnion, mioNickname, "foto", idCondiviso, pacchetto)
-                    statoInvio = if (inviato) null else "Non recapitato: verifica che Orbot sia attivo e il contatto raggiungibile"
+                    statoInvio = if (inviato) null else "Non recapitato (${trasporto.ultimoErrore ?: "errore sconosciuto"}). Verifica che Orbot sia attivo e il contatto raggiungibile"
                 }
             }
         }
@@ -207,7 +207,7 @@ fun ConversazioneScreen(
                     testoInput = ""
                     scope.launch {
                         val inviato = trasporto.invia(contatto.indirizzoOnion, mioNickname, "testo", idCondiviso, pacchetto)
-                        statoInvio = if (inviato) null else "Non recapitato: verifica che Orbot sia attivo e il contatto raggiungibile"
+                        statoInvio = if (inviato) null else "Non recapitato (${trasporto.ultimoErrore ?: "errore sconosciuto"}). Verifica che Orbot sia attivo e il contatto raggiungibile"
                     }
                 }
             }) {

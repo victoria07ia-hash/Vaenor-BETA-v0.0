@@ -30,7 +30,7 @@ sealed class Schermata {
 fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null) {
     val context = LocalContext.current
     val storage = remember { StorageLocale(context) }
-    val trasporto = remember { com.nickapp.chatcifrata.rete.TrasportoTor() }
+    val trasporto = remember { com.nickapp.chatcifrata.rete.TrasportoTor.istanza }
 
     var schermata by remember {
         mutableStateOf<Schermata>(
@@ -51,7 +51,11 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
         trasporto.alRicevimento { mittente, tipo, idCondiviso, pacchetto ->
             elaboraPacchettoInArrivo(storage, crypto, messaggiPerContatto, mittente, tipo, idCondiviso, pacchetto)
         }
-        onDispose { }
+        onDispose {
+            // Quando la schermata viene distrutta, il ricevitore smette di scrivere nelle chat in memoria:
+            // così i messaggi dell'app chiusa non restano raggiungibili né continuano ad accumularsi.
+            trasporto.alRicevimento { _, _, _, _ -> }
+        }
     }
 
     // Avvia il trasporto Tor una sola volta, appena arriviamo alla lista chat (cioè dopo
@@ -76,6 +80,14 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
         TemaApp.SCURO -> true
     }
 
+    // Dopo il reset (3 PIN sbagliati) va svuotato anche quello che è ancora in memoria:
+    // contatti, chat (foto comprese) e tema, altrimenti ricomparirebbero con la nuova identità.
+    fun azzeraMemoriaDopoReset() {
+        synchronized(messaggiPerContatto) { messaggiPerContatto.clear() }
+        contatti = emptyList()
+        tema = storage.leggiTema()
+    }
+
     MaterialTheme(colorScheme = if (usaTemaScuro) darkColorScheme() else lightColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             when (val corrente = schermata) {
@@ -88,13 +100,19 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
                     storage = storage,
                     modalitaImpostazione = true,
                     onSbloccato = { schermata = Schermata.RichiedeOrbot },
-                    onDatiCancellati = { schermata = Schermata.CreazioneIdentita }
+                    onDatiCancellati = {
+                        azzeraMemoriaDopoReset()
+                        schermata = Schermata.CreazioneIdentita
+                    }
                 )
                 is Schermata.RichiediPin -> BloccoPinScreen(
                     storage = storage,
                     modalitaImpostazione = false,
                     onSbloccato = { schermata = Schermata.RichiedeOrbot },
-                    onDatiCancellati = { schermata = Schermata.CreazioneIdentita }
+                    onDatiCancellati = {
+                        azzeraMemoriaDopoReset()
+                        schermata = Schermata.CreazioneIdentita
+                    }
                 )
                 is Schermata.RichiedeOrbot -> RichiedeOrbotScreen(
                     onOrbotPronto = { schermata = Schermata.ListaChat }
