@@ -17,9 +17,17 @@ object BloccoApp {
 
     /** Da chiamare subito prima di aprire una schermata di sistema richiesta dall'app stessa
      *  (galleria, scanner QR, condivisione): l'uscita successiva non fa scattare il blocco,
-     *  altrimenti ti chiederebbe il PIN a ogni foto scelta. Vale una volta sola, al massimo 10 minuti. */
+     *  altrimenti ti chiederebbe il PIN a ogni foto scelta. Vale una volta sola e al massimo 2 minuti.
+     *  Si spegne comunque appena si torna all'app (vedi [alRitorno]). */
     fun sospendiPerUscitaVolontaria() {
-        sospesoFinoA = SystemClock.elapsedRealtime() + 10 * 60 * 1000L
+        sospesoFinoA = SystemClock.elapsedRealtime() + 2 * 60 * 1000L
+    }
+
+    /** Chiamata dall'activity quando l'app torna davanti. La galleria foto di Android recente e il menu di
+     *  condivisione si aprono come pannelli sopra l'app, senza farla uscire del tutto: in quel caso nessuno
+     *  consuma il permesso, che resterebbe acceso e farebbe saltare il PIN alla prossima vera uscita. */
+    fun alRitorno() {
+        sospesoFinoA = 0L
     }
 
     /** Chiamata dall'activity quando l'app non è più visibile. */
