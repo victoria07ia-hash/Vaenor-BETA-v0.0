@@ -5,6 +5,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.nickapp.chatcifrata.ui.AppChatCifrata
+import com.nickapp.chatcifrata.ui.BloccoApp
 import com.nickapp.chatcifrata.ui.leggiContattoDaLink
 
 class MainActivity : ComponentActivity() {
@@ -21,5 +22,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppChatCifrata(contattoDaLink = contattoDaLink)
         }
+    }
+
+    // Quando l'app non è più visibile (home, altra app, schermo spento) al ritorno servirà di nuovo il PIN.
+    override fun onStop() {
+        super.onStop()
+        BloccoApp.alleUscita()
     }
 }
