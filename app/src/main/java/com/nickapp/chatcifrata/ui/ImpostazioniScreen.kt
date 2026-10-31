@@ -24,7 +24,7 @@ fun ImpostazioniScreen(
         Text("Aspetto", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
 
-        OpzioneTema("Sistema (segue il telefono)", temaAttuale == TemaApp.SISTEMA) { onTemaCambiato(TemaApp.SISTEMA) }
+        OpzioneTema("Sistema", temaAttuale == TemaApp.SISTEMA) { onTemaCambiato(TemaApp.SISTEMA) }
         OpzioneTema("Chiaro", temaAttuale == TemaApp.CHIARO) { onTemaCambiato(TemaApp.CHIARO) }
         OpzioneTema("Scuro", temaAttuale == TemaApp.SCURO) { onTemaCambiato(TemaApp.SCURO) }
     }
