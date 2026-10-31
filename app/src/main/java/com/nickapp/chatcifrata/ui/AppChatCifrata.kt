@@ -41,6 +41,11 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
             }
         )
     }
+    // Schermata in cui eri quando l'app si è bloccata: dopo il PIN ci torni, invece di ripartire dalla lista.
+    var schermataDaRipristinare by remember { mutableStateOf<Schermata?>(null) }
+    // Invito arrivato da un link: va mostrato una sola volta, non ogni volta che si torna alla lista chat.
+    var linkInSospeso by remember { mutableStateOf(contattoDaLink) }
+    var contattoPrecompilato by remember { mutableStateOf<com.nickapp.chatcifrata.data.Contatto?>(null) }
     var contatti by remember { mutableStateOf(storage.leggiContatti()) }
     val messaggiPerContatto = remember { mutableStateMapOf<String, List<Messaggio>>() }
     val crypto = remember { CryptoManager() }
@@ -66,9 +71,28 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
         }
     }
 
-    LaunchedEffect(contattoDaLink, schermata) {
-        if (contattoDaLink != null && schermata == Schermata.ListaChat) {
+    LaunchedEffect(linkInSospeso, schermata) {
+        val link = linkInSospeso
+        if (link != null && schermata == Schermata.ListaChat) {
+            contattoPrecompilato = link
+            linkInSospeso = null
             schermata = Schermata.AggiungiContatto
+        }
+    }
+
+    // Blocco automatico: se l'app è uscita dallo schermo mentre eri dentro, al ritorno chiede il PIN.
+    // Le chat in memoria restano com'erano, ma non si vedono finché non sblocchi.
+    LaunchedEffect(BloccoApp.daBloccare) {
+        if (BloccoApp.daBloccare) {
+            BloccoApp.daBloccare = false
+            val corrente = schermata
+            val bloccabile = corrente is Schermata.ListaChat || corrente is Schermata.AggiungiContatto ||
+                corrente is Schermata.Conversazione || corrente is Schermata.Impostazioni ||
+                corrente is Schermata.RichiedeOrbot
+            if (bloccabile && storage.haPinImpostato()) {
+                schermataDaRipristinare = corrente
+                schermata = Schermata.RichiediPin
+            }
         }
     }
 
@@ -86,6 +110,9 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
         synchronized(messaggiPerContatto) { messaggiPerContatto.clear() }
         contatti = emptyList()
         tema = storage.leggiTema()
+        schermataDaRipristinare = null
+        linkInSospeso = null
+        contattoPrecompilato = null
     }
 
     MaterialTheme(colorScheme = if (usaTemaScuro) darkColorScheme() else lightColorScheme()) {
@@ -108,7 +135,12 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
                 is Schermata.RichiediPin -> BloccoPinScreen(
                     storage = storage,
                     modalitaImpostazione = false,
-                    onSbloccato = { schermata = Schermata.RichiedeOrbot },
+                    onSbloccato = {
+                        // Dopo un blocco automatico torni dov'eri; all'avvio normale passi dal controllo Orbot.
+                        val ripristino = schermataDaRipristinare
+                        schermataDaRipristinare = null
+                        schermata = ripristino ?: Schermata.RichiedeOrbot
+                    },
                     onDatiCancellati = {
                         azzeraMemoriaDopoReset()
                         schermata = Schermata.CreazioneIdentita
@@ -134,12 +166,16 @@ fun AppChatCifrata(contattoDaLink: com.nickapp.chatcifrata.data.Contatto? = null
                     onIndietro = { schermata = Schermata.ListaChat }
                 )
                 is Schermata.AggiungiContatto -> AggiungiContattoScreen(
-                    onIndietro = { schermata = Schermata.ListaChat },
+                    onIndietro = {
+                        contattoPrecompilato = null
+                        schermata = Schermata.ListaChat
+                    },
                     onContattoAggiunto = {
+                        contattoPrecompilato = null
                         contatti = storage.leggiContatti()
                         schermata = Schermata.ListaChat
                     },
-                    contattoPrecompilato = contattoDaLink
+                    contattoPrecompilato = contattoPrecompilato
                 )
                 is Schermata.Conversazione -> ConversazioneScreen(
                     contatto = corrente.contatto,

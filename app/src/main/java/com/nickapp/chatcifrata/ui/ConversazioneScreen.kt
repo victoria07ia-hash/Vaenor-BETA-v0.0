@@ -169,7 +169,12 @@ fun ConversazioneScreen(
                     onElimina = { eliminaPerTutti(messaggio) },
                     onAperturaFoto = {
                         if (messaggio.tipo == TipoMessaggio.FOTO && !messaggio.fotoVista) {
+                            // La foto risulta vista nel momento in cui si apre, non quando si chiude: così,
+                            // anche se l'app si blocca mentre la guardi, non si può rivedere una seconda volta.
                             fotoInVisualizzazione = messaggio
+                            onMessaggiAggiornati(
+                                messaggi.map { if (it.id == messaggio.id) it.copy(datiFoto = null, fotoVista = true) else it }
+                            )
                         }
                     }
                 )
@@ -181,6 +186,7 @@ fun ConversazioneScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = {
+                BloccoApp.sospendiPerUscitaVolontaria()
                 selezionaFoto.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             }) {
                 Icon(Icons.Filled.AddCircle, contentDescription = "Allega foto (vista una volta)")
@@ -221,14 +227,7 @@ fun ConversazioneScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.92f))
-                .clickable {
-                    onMessaggiAggiornati(
-                        messaggi.map {
-                            if (it.id == messaggio.id) it.copy(datiFoto = null, fotoVista = true) else it
-                        }
-                    )
-                    fotoInVisualizzazione = null
-                },
+                .clickable { fotoInVisualizzazione = null },
             contentAlignment = Alignment.Center
         ) {
             val bytes = messaggio.datiFoto

@@ -3,6 +3,8 @@ package com.nickapp.chatcifrata.ui
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
@@ -49,6 +51,16 @@ fun leggiContattoDaLink(testo: String): Contatto? {
     }
 }
 
+/** Ripulisce un indirizzo .onion copiato da Orbot (spazi, "http://", porta, barre) e controlla che
+ *  abbia il formato giusto: 56 caratteri seguiti da ".onion". Restituisce null se non è valido. */
+fun normalizzaOnion(testo: String): String? {
+    val pulito = testo.trim().lowercase()
+        .removePrefix("http://").removePrefix("https://")
+        .substringBefore('/')
+        .substringBefore(':')
+    return if (Regex("""^[a-z2-7]{56}\.onion$""").matches(pulito)) pulito else null
+}
+
 private fun generaBitmapQr(testo: String, dimensione: Int = 480): Bitmap {
     val matrice = QRCodeWriter().encode(testo, BarcodeFormat.QR_CODE, dimensione, dimensione)
     val bitmap = Bitmap.createBitmap(dimensione, dimensione, Bitmap.Config.RGB_565)
@@ -70,7 +82,11 @@ fun AggiungiContattoScreen(
     val storage = remember { StorageLocale(context) }
     val crypto = remember { CryptoManager() }
 
+    // Indirizzo già salvato (usato per costruire QR e link) e bozza di quello che si sta scrivendo:
+    // tenerli separati evita che la schermata cambi mentre si incolla e che l'indirizzo non venga mai salvato.
     var indirizzoOnionProprio by remember { mutableStateOf(storage.leggiIndirizzoOnionProprio() ?: "") }
+    var bozzaOnion by remember { mutableStateOf("") }
+    var erroreOnion by remember { mutableStateOf<String?>(null) }
     var linkIncollato by remember { mutableStateOf("") }
     var errore by remember { mutableStateOf<String?>(null) }
     var contattoDaConfermare by remember { mutableStateOf(contattoPrecompilato) }
@@ -90,7 +106,7 @@ fun AggiungiContattoScreen(
     val nickname = storage.leggiNickname() ?: ""
     val chiavePubblica = storage.leggiChiavePubblica()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
 
         TextButton(onClick = onIndietro) { Text("← Indietro") }
 
@@ -122,14 +138,26 @@ fun AggiungiContattoScreen(
             )
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
-                value = indirizzoOnionProprio,
-                onValueChange = { indirizzoOnionProprio = it },
+                value = bozzaOnion,
+                onValueChange = { bozzaOnion = it; erroreOnion = null },
                 label = { Text("Indirizzo .onion (da Orbot)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            erroreOnion?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
             Spacer(Modifier.height(8.dp))
-            Button(onClick = { storage.salvaIndirizzoOnionProprio(indirizzoOnionProprio) }) {
+            Button(onClick = {
+                val pulito = normalizzaOnion(bozzaOnion)
+                if (pulito == null) {
+                    erroreOnion = "Indirizzo non valido: deve essere quello mostrato da Orbot, di 56 caratteri e con .onion alla fine"
+                } else {
+                    storage.salvaIndirizzoOnionProprio(pulito)
+                    indirizzoOnionProprio = pulito
+                }
+            }) {
                 Text("Salva indirizzo")
             }
         } else if (chiavePubblica != null) {
@@ -155,10 +183,15 @@ fun AggiungiContattoScreen(
                         type = "text/plain"
                         putExtra(android.content.Intent.EXTRA_TEXT, link)
                     }
+                    BloccoApp.sospendiPerUscitaVolontaria()
                     context.startActivity(android.content.Intent.createChooser(intent, "Condividi link di invito"))
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Condividi link") }
+            TextButton(onClick = {
+                bozzaOnion = indirizzoOnionProprio
+                indirizzoOnionProprio = ""
+            }) { Text("Cambia indirizzo .onion") }
         }
 
         Spacer(Modifier.height(28.dp))
@@ -171,6 +204,7 @@ fun AggiungiContattoScreen(
         Button(
             onClick = {
                 errore = null
+                BloccoApp.sospendiPerUscitaVolontaria()
                 lanciaScansione.launch(
                     ScanOptions()
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
